@@ -400,16 +400,38 @@ python .\scripts\check-studio-auth.py     # 输出 401/403/200 权限矩阵 + �
 > 手动起的服务会跟着 shell 会话一起死。而服务一旦死掉，**没有任何地方会报错**——
 > agent 的 hook 会优雅降级，安静地停止召回和写入。**一切看起来都正常，只有记忆死了。**
 
-### P7.1 启动器说明
+### P7.1 选哪条路
+
+| | 路径 A：NSSM 真系统服务 | 路径 B：隐藏计划任务 |
+|---|---|---|
+| 语义 | 开机即起（早于登录）、登出不死 | 登录时自启、登出即停 |
+| 崩溃自愈 | ✅ 由 NSSM/SCM 自动重启 | ❌ 需手动拉起 |
+| 能否手动停 | 能（`Stop-Service`） | 能（`Stop-ScheduledTask`） |
+| 需要管理员 | 是（创建服务） | 否 |
+| 适用场景 | 长期常驻，希望它自己活着 | 想随时手动接管 |
+
+**默认走路径 A**，除非你明确要保留"登录才跑"的语义。
+
+### P7.2 路径 A：NSSM 真系统服务（推荐）
+
+在本机**管理员 PowerShell** 里运行（脚本自动探测 nssm / `openviking-server.exe` / `SILICONFLOW_KEY`）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-nssm.ps1
+```
+
+它会：nssm install 创建服务 → 写参数（无窗口、崩溃自愈 `AppExit=Restart`、开机自启 `Start=auto`、日志重定向）→ 注入环境变量（`SILICONFLOW_KEY` + `HOME=C:\Users\<you>` + `CODEBUDDY_SAFE_DELETE_ENABLED=0`），让服务复用现有 `~/.openviking` 的全部配置与数据。
+
+成功的关键：`nssm install` 这一步会**通知 SCM 加载服务**。若你处在受限宿主（AI 工具内置的 PowerShell），创建服务可能被拦 —— `sc.exe` 在程序黑名单、`nssm install` / `New-Service` 会被宿主杀掉，而 SCM 也不会识别纯注册表写入的服务项。这时到**本机真实的管理员 PowerShell** 跑本脚本即可；如果服务项已经用纯注册表写好、只是 SCM 没认，重启一次系统也会让它在启动时加载。
+
+### P7.3 路径 B：隐藏计划任务（登录自启，可手动停）
 
 本仓库有两个启动器：
 
 - `scripts/launch-hidden.ps1`（**计划任务默认用它**）：用 PowerShell 以 `-WindowStyle Hidden` 调起 server，桌面**不会弹小黑窗**；日志写到 `$OPENVIKING_HOME/logs/server-launch.log`。
-- `scripts/start-ov.cmd`：前台启动器，方便你手动双击调试时看到实时输出。它刻意不用 `pause`（无窗口模式下会挂死），也不在日志里用 `%date%`（中文 Windows 批处理代码页是 GBK，星期几会乱码，用 `%time%`）。
+- `scripts/start-ov.cmd`：前台启动器，方便手动双击调试时看到实时输出。它刻意不用 `pause`（无窗口模式下会挂死），也不在日志里用 `%date%`（中文 Windows 批处理代码页是 GBK，星期几会乱码，用 `%time%`）。
 
 两种启动器都会清掉 WorkBuddy 注入的 shim 环境变量、并解析 `SILICONFLOW_KEY`（进程环境变量优先，其次同目录 `.env`）。
-
-### P7.2 注册登录时计划任务
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\register-autostart.ps1
@@ -425,7 +447,21 @@ powershell -ExecutionPolicy Bypass -File .\scripts\register-autostart.ps1
 | **执行时间上限** | **`PT0S`（无限制）** | ⚠️ **默认是 3 天**，到点被系统强杀。常驻服务必须设 0 |
 | 多实例策略 | `IgnoreNew` | 防重复启动抢 1933 端口 |
 
-### P7.3 验收：确认进程真的独立了
+### P7.4 验收：确认它真的独立活着
+
+路径 A（NSSM 服务）：
+
+```powershell
+Get-Service OpenVikingServer
+```
+
+- [ ] `Status = Running`、`StartType = Automatic`
+- [ ] server 进程 `MainWindowHandle = 0`（没有控制台窗口）
+- [ ] 父链末端是 `services.exe`（SCM 托管），不是 `bash.exe` / `powershell.exe`
+- [ ] **杀掉 server 进程后会自动重启**（NSSM `AppExit=Restart` 生效）
+- [ ] **重启机器后 `ov health` 自动通过**（终极验收）
+
+路径 B（计划任务）：
 
 ```powershell
 python .\scripts\ov-doctor.py --parent-chain

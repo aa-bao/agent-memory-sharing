@@ -296,21 +296,22 @@ peer 是记忆的分区键。**选错的表现是"装了但互相看不见"—�
 - 任务**只在登录时触发**，进程被杀后不会自启——这样你随时能手动停服务（`Stop-ScheduledTask` / 杀进程）。
 - 用户**登出后**进程会随会话结束而退出（不是系统级常驻）。对"人一直登录着用 agent"的场景够用。
 
-### 想要"真·后台服务"时：升级到 NSSM
+### 想要"真·后台服务"时：NSSM 真服务（本项目主路径）
 
-如果场景需要**开机即起（早于登录）、登出不死、由 SCM 故障自愈**，把包装器换成 Windows 服务：
+如果场景需要**开机即起（早于登录）、登出不死、由 SCM 故障自愈**，用 NSSM 把 server 包成系统服务。本项目已落地此方案，直接用脚本：
 
 ```powershell
-# 用 NSSM（nssm.cc，单文件，免安装）把 server 包成服务
-nssm install OpenVikingServer "C:\Users\<you>\AppData\Roaming\uv\tools\openviking\Scripts\openviking-server.exe"
-nssm set OpenVikingServer AppDirectory "C:\Users\<you>\.openviking"
-nssm set OpenVikingServer AppEnvironmentExtra "CODEBUDDY_SAFE_DELETE_ENABLED=0"
-nssm set OpenVikingServer AppExit Default Restart   # 崩溃自动重启
-nssm set OpenVikingServer Start SERVICE_AUTO_START    # 开机自启
-nssm start OpenVikingServer
+# 在本机管理员 PowerShell 里运行（脚本会探测 nssm / openviking-server / key）：
+powershell -ExecutionPolicy Bypass -File scripts/install-nssm.ps1
 ```
 
-注意两点：(1) 服务默认跑在 `SYSTEM`/`NetworkService` 下，拿不到你的用户 `SILICONFLOW_KEY`，要么用 `nssm set ... AppEnvironmentExtra "SILICONFLOW_KEY=sk-xxx"`，要么把 key 放到机器级环境变量；(2) 服务进程仍可能被 WorkBuddy 的 safe-delete 守卫拦启动，所以 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 必须设。
+`install-nssm.ps1` 会：nssm install 创建服务 → 写 NSSM 参数（无窗口、崩溃自愈 `AppExit=Restart`、开机自启 `Start=auto`、日志重定向）→ 注入环境变量（`SILICONFLOW_KEY` + `HOME=C:\Users\<you>` + `CODEBUDDY_SAFE_DELETE_ENABLED=0`）。
+
+几个关键点：
+
+- **身份用 `LocalSystem`**，配合 `HOME=C:\Users\<you>` 让 OpenViking 复用现有 `~/.openviking`（配置、数据、密钥全部一致），无需另配机器级环境变量。
+- **`CODEBUDDY_SAFE_DELETE_ENABLED=0` 必须设**——否则 OpenViking 自己的清理动作可能被 safe-delete 守卫拦。
+- **激活服务需要 `CreateService` 权限**：在受限宿主（如某些 AI 工具内置 PowerShell）里 `sc.exe` 在程序黑名单、`nssm install` / `New-Service` 会被宿主杀掉，SCM 也不会识别纯注册表写入的服务项。这种情况下，到**本机真实的管理员 PowerShell** 跑 `install-nssm.ps1` 即可（nssm install 会通知 SCM 加载）。若已用纯注册表方式写好服务项，重启系统也能让 SCM 在启动时加载。
 
 ---
 
