@@ -2,11 +2,11 @@
 
 让本机的多个 coding agent 共用一份长期记忆。
 
-底座是 [OpenViking](https://github.com/volcengine/OpenViking)（Agent 原生上下文数据库，AGPL-3.0）。本仓库不重写它的文档，只解决一件事：让它在 Windows 上真的跑起来、开机自启、各个 agent 都能连上。
+底座是 [OpenViking](https://github.com/volcengine/OpenViking)（Agent 原生上下文数据库，AGPL-3.0）。本仓库不重写它的文档，只解决一件事：让它统一你电脑的所有 agent 记忆，不管你切换哪个 agent 上下文都能直接注入。
 
-官方安装器不支持 Windows。更麻烦的是这套东西的故障大多不报错，服务挂了、抽取返回空、召回返回 `{}`，看起来都正常。所以下面每一步都带验收，验收不过就别往下走。
+装完之后，你在 Claude Code 里提过一次的偏好，切到 Codex、dsh、zcode 等 agent 上下文中直接注入记忆，反过来也一样。
 
-装完之后，你在 Claude Code 里提过一次的偏好，Codex 那边开场就知道了。反过来也一样。
+直接给 agent 部署即可。
 
 ---
 
@@ -18,23 +18,23 @@
 
 脚本不写死路径。`scripts/_ov.py` 负责探测 `ov` 可执行文件和配置目录，所以整个仓库可以随便搬、随便改名。常驻约定看 [`AGENTS.md`](AGENTS.md)，篇幅短，适合塞进上下文。
 
-## 几条不要
+## 禁止做的事
 
-别把 API key 明文写进 `ov.conf`，用 `${SILICONFLOW_KEY}` 引用环境变量。配置文件最容易被截图、被分享。
+禁止把 API key 明文写进 `ov.conf`，用 `${SILICONFLOW_KEY}` 引用环境变量。
 
-别拿旧上下文里的背景信息去构造验证会话。本项目踩过最惨的一次就是这个：VLM 无从判断真伪，会把你的错误表述当事实忠实抽取、永久固化，还附上引用让错误显得更可信。详见 TROUBLESHOOTING 的「假记忆污染」。
+禁止拿旧上下文里的背景信息去构造验证会话。本项目踩过的坑：VLM 无从判断真伪，会把你的错误表述当事实忠实抽取、永久固化，还附上引用让错误显得更可信。详见 TROUBLESHOOTING 的「假记忆污染」。
 
-别在同一条命令里既删文件又启动服务。safe-delete 守卫会拦在删除那步，整条命令中止，服务根本没起来，而你以为它起了。
+禁止在同一条命令里既删文件又启动服务。safe-delete 守卫会拦在删除那步，整条命令中止，服务根本没起来，而你以为它起了。
 
-别为了修 Studio 空白页就把 `auth_mode` 改成 `dev`。那等于关掉整个服务的鉴权，还会破坏插件依赖的用户密钥身份解析。空白页是 MIME 问题，`scripts/apply-mime-fix.py` 能修。
+禁止为了修 Studio 空白页就把 `auth_mode` 改成 `dev`。那等于关掉整个服务的鉴权，还会破坏插件依赖的用户密钥身份解析。空白页是 MIME 问题，`scripts/apply-mime-fix.py` 能修。
 
 `.env` 也别提交，`.gitignore` 里写好了。
 
-## 你得先有
+## 配置要求
 
-Windows 10 / 11，Python ≥ 3.10，uv，磁盘留 2 GB 左右。
+和 openviking 一样，一个 embedding 模型，一个 VLM 模型；
 
-还有最重要的：一个 OpenAI 兼容的模型端点，必须**同时**提供 embedding 和 chat。只有 chat 的通道（DeepSeek 这类）用不了——记忆抽取全靠 VLM 干。选型理由和免费额度坑在 [`docs/decisions.md`](docs/decisions.md)。
+选型理由和免费额度在 [`docs/decisions.md`](docs/decisions.md)。
 
 ## 文件在哪
 
