@@ -8,6 +8,8 @@
 
 直接给 agent 部署即可。
 
+网址 http://localhost:1933/studio/home 
+
 ---
 
 ## 给 agent 的入口
@@ -65,4 +67,4 @@ examples/           安全的验证会话样例
 
 OpenViking 是 AGPL-3.0。自己机器上用没问题，对外提供服务或分发之前先做许可证评估。
 
-里面的内容都是 Windows 实测沉淀，配置键位会随 OpenViking 版本漂移，升级前先 `ovpack` 备份。这个仓库本身没带许可证文件，要公开分发的话自行补一个。
+里面的内容都是 Windows 实测沉淀，配置键位会随 OpenViking 版本漂移，升级前先 `ovpack` 备份。
