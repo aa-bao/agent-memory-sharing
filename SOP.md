@@ -400,12 +400,14 @@ python .\scripts\check-studio-auth.py     # 输出 401/403/200 权限矩阵 + �
 > 手动起的服务会跟着 shell 会话一起死。而服务一旦死掉，**没有任何地方会报错**——
 > agent 的 hook 会优雅降级，安静地停止召回和写入。**一切看起来都正常，只有记忆死了。**
 
-### P7.1 先验证启动器是"计划任务友好"的
+### P7.1 启动器说明
 
-启动器**不能用 `pause`**（无窗口模式下会挂死进程）；输出要写日志文件，因为计划任务下没有控制台。
+本仓库有两个启动器：
 
-`scripts/start-ov.cmd` 已经满足这两点。另外在中文 Windows 上**不要用 `%date%`**——
-批处理的代码页是 GBK，星期几会以乱码写进日志。用 `%time%`。
+- `scripts/launch-hidden.ps1`（**计划任务默认用它**）：用 PowerShell 以 `-WindowStyle Hidden` 调起 server，桌面**不会弹小黑窗**；日志写到 `$OPENVIKING_HOME/logs/server-launch.log`。
+- `scripts/start-ov.cmd`：前台启动器，方便你手动双击调试时看到实时输出。它刻意不用 `pause`（无窗口模式下会挂死），也不在日志里用 `%date%`（中文 Windows 批处理代码页是 GBK，星期几会乱码，用 `%time%`）。
+
+两种启动器都会清掉 WorkBuddy 注入的 shim 环境变量、并解析 `SILICONFLOW_KEY`（进程环境变量优先，其次同目录 `.env`）。
 
 ### P7.2 注册登录时计划任务
 
@@ -432,15 +434,14 @@ python .\scripts\ov-doctor.py --parent-chain
 健康的父链末端应该是 **Task Scheduler 的 `svchost.exe`**，而不是 `bash.exe`：
 
 ```
-python.exe            ← 监听 1933
-  ↑ python.exe
+python.exe            ← 监听 1933（无可见窗口，MainWindowHandle=0）
   ↑ openviking-server.exe
-  ↑ cmd.exe           ← start-ov.cmd
+  ↑ powershell.exe    ← launch-hidden.ps1，-WindowStyle Hidden，无小黑窗
   ↑ svchost.exe       ← Task Scheduler 本体 ✅ 已脱离任何会话
 ```
 
 - [ ] `Get-ScheduledTaskInfo -TaskName OpenVikingMemoryServer` → `LastTaskResult = 267009`（正在运行）或 `0`（正常）
-- [ ] 父链末端是 `svchost.exe`
+- [ ] 父链末端是 `svchost.exe`，且 server 进程 `MainWindowHandle = 0`（没有弹出控制台窗口）
 - [ ] **重启机器后 `ov health` 自动通过**（终极验收）
 
 > 计划任务**只在登录时触发**，杀掉进程后不会自动重启——这是**有意设计**的，否则你没法手动停服务。

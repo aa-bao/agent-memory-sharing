@@ -15,11 +15,15 @@
       执行时间上限  PT0S（无限制）       ⚠️ 默认是 3 天，到点被系统强杀。常驻服务必须设 0
       多实例        IgnoreNew            防重复启动抢端口
 
+    启动器用 launch-hidden.ps1（PowerShell 以 -WindowStyle Hidden 调起 server），
+    所以服务在后台静默运行，桌面上不会冒出一个小黑窗。
+    如果仍想要「真正的 Windows 服务（开机即起、登出不死、无窗口）」，见 docs/decisions.md 的 NSSM 方案。
+
 .PARAMETER TaskName
     计划任务名，默认 OpenVikingMemoryServer。
 
 .PARAMETER Launcher
-    启动器路径。默认 <仓库根>\scripts\start-ov.cmd
+    启动器路径。默认 <仓库根>\scripts\launch-hidden.ps1
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\scripts\register-autostart.ps1
@@ -36,7 +40,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-if (-not $Launcher) { $Launcher = Join-Path $repoRoot "scripts\start-ov.cmd" }
+if (-not $Launcher) { $Launcher = Join-Path $repoRoot "scripts\launch-hidden.ps1" }
 
 Write-Host "=== register OpenViking autostart ===" -ForegroundColor Cyan
 
@@ -59,8 +63,15 @@ if ($existing) {
     Write-Host "removed     = (none existed)"
 }
 
+# 用 powershell -WindowStyle Hidden 调起启动器，这样 server 在后台静默运行，
+# 不会在桌面上弹出小黑窗。-WorkingDirectory 设到脚本所在目录，方便它读取同目录 .env。
+$psExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $psExe) { $psExe = "powershell.exe" }
+$psArgs = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Launcher`""
+
 $action = New-ScheduledTaskAction `
-    -Execute $Launcher `
+    -Execute $psExe `
+    -Argument $psArgs `
     -WorkingDirectory (Split-Path -Parent $Launcher)
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $me

@@ -279,6 +279,41 @@ peer 是记忆的分区键。**选错的表现是"装了但互相看不见"—�
 
 ---
 
+## D7 · 启动方式：隐藏计划任务，而不是真 Windows 服务
+
+### 背景
+
+服务需要一个"在后台跑、不需要小黑窗、登录后自动起"的启动方式。`openviking-server` 是个普通控制台程序，直接注册计划任务跑 `.cmd` 会在交互会话里弹一个可见的控制台窗口。
+
+### 为什么用"隐藏 PowerShell 包装器 + AtLogOn 计划任务"
+
+- `launch-hidden.ps1` 用 `Start-Process -WindowStyle Hidden` 调起 server，桌面**不弹窗**；任务仍跑在当前用户会话，能拿到用户的 `SILICONFLOW_KEY`（持久用户环境变量 `HKCU:\Environment`）。
+- 计划任务 `AtLogOn` 触发器负责"登录自启"；`-ExecutionTimeLimit ([TimeSpan]::Zero)` 让它常驻不被强杀；`Interactive` + `Limited` 让注册时**不用 UAC、不用存密码**。
+- 零新增依赖，不下载任何东西。
+
+### 已知边界（也是"有意设计"）
+
+- 任务**只在登录时触发**，进程被杀后不会自启——这样你随时能手动停服务（`Stop-ScheduledTask` / 杀进程）。
+- 用户**登出后**进程会随会话结束而退出（不是系统级常驻）。对"人一直登录着用 agent"的场景够用。
+
+### 想要"真·后台服务"时：升级到 NSSM
+
+如果场景需要**开机即起（早于登录）、登出不死、由 SCM 故障自愈**，把包装器换成 Windows 服务：
+
+```powershell
+# 用 NSSM（nssm.cc，单文件，免安装）把 server 包成服务
+nssm install OpenVikingServer "C:\Users\<you>\AppData\Roaming\uv\tools\openviking\Scripts\openviking-server.exe"
+nssm set OpenVikingServer AppDirectory "C:\Users\<you>\.openviking"
+nssm set OpenVikingServer AppEnvironmentExtra "CODEBUDDY_SAFE_DELETE_ENABLED=0"
+nssm set OpenVikingServer AppExit Default Restart   # 崩溃自动重启
+nssm set OpenVikingServer Start SERVICE_AUTO_START    # 开机自启
+nssm start OpenVikingServer
+```
+
+注意两点：(1) 服务默认跑在 `SYSTEM`/`NetworkService` 下，拿不到你的用户 `SILICONFLOW_KEY`，要么用 `nssm set ... AppEnvironmentExtra "SILICONFLOW_KEY=sk-xxx"`，要么把 key 放到机器级环境变量；(2) 服务进程仍可能被 WorkBuddy 的 safe-delete 守卫拦启动，所以 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 必须设。
+
+---
+
 ## 附录 · 风险表
 
 | # | 风险 | 等级 | 对策 |
