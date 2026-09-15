@@ -1,0 +1,5 @@
+{
+  "url": "http://127.0.0.1:1933",
+  "root_api_key": "REPLACE_WITH_THE_SAME_VALUE_AS_server.root_api_key_IN_ov.conf",
+  "api_key": ""
+}

@@ -1,0 +1,57 @@
+{
+  "embedding": {
+    "max_input_tokens": 4096,
+    "dense": {
+      "provider": "openai",
+      "api_base": "https://api.siliconflow.cn/v1",
+      "api_key": "${SILICONFLOW_KEY}",
+      "model": "BAAI/bge-m3",
+      "dimension": 1024
+    }
+  },
+
+  "rerank": {
+    "provider": "openai",
+    "api_base": "https://api.siliconflow.cn/v1/rerank",
+    "api_key": "${SILICONFLOW_KEY}",
+    "model": "BAAI/bge-reranker-v2-m3",
+    "max_input_tokens": 2048,
+    "threshold": 0.1
+  },
+
+  "vlm": {
+    "provider": "openai",
+    "api_base": "https://api.siliconflow.cn/v1",
+    "api_key": "${SILICONFLOW_KEY}",
+    "model": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+    "temperature": 0.0,
+    "max_tokens": 8192,
+    "thinking": false,
+    "max_concurrent": 8
+  },
+
+  "storage": {
+    "workspace": "~/.openviking/data",
+    "agfs": {
+      "backend": "local"
+    },
+    "vectordb": {
+      "backend": "local",
+      "name": "context"
+    }
+  },
+
+  "server": {
+    "host": "127.0.0.1",
+    "port": 1933,
+    "root_api_key": "REPLACE_WITH_A_LONG_RANDOM_STRING",
+    "agent_evolution": {
+      "enabled": true
+    }
+  },
+
+  "memory": {
+    "extraction_output_format": "json",
+    "custom_templates_dir": "~/.openviking/custom-memory"
+  }
+}

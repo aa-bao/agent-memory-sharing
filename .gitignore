@@ -1,0 +1,32 @@
+# ---------- secrets (NEVER commit) ----------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+ov.conf
+ovcli.conf
+credentials.json
+
+# ---------- runtime state ----------
+logs/
+*.log
+state/
+*.bak
+*.backup
+
+# ---------- python ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---------- os noise ----------
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---------- local scratch ----------
+_out/
+_probe/
+_schedtask-result.txt
