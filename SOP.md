@@ -424,6 +424,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-nssm.ps1
 
 成功的关键：`nssm install` 这一步会**通知 SCM 加载服务**。若你处在受限宿主（AI 工具内置的 PowerShell），创建服务可能被拦 —— `sc.exe` 在程序黑名单、`nssm install` / `New-Service` 会被宿主杀掉，而 SCM 也不会识别纯注册表写入的服务项。这时到**本机真实的管理员 PowerShell** 跑本脚本即可；如果服务项已经用纯注册表写好、只是 SCM 没认，重启一次系统也会让它在启动时加载。
 
+> ⚠️ **A、B 两条路互斥，别同时开着。** 走通路径 A 之后卸掉计划任务，否则重启机器时两边抢 `1933`，
+> 而 NSSM 的 `AppExit=Restart` 会让失败的一方反复重启、刷满日志：
+>
+> ```powershell
+> Unregister-ScheduledTask -TaskName OpenVikingMemoryServer -Confirm:$false
+> ```
+>
+> 同理，留在路径 B 时不要留一个 `Start=auto` 的服务注册表项。
+
 ### P7.3 路径 B：隐藏计划任务（登录自启，可手动停）
 
 本仓库有两个启动器：

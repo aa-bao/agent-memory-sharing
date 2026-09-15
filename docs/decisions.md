@@ -312,6 +312,22 @@ powershell -ExecutionPolicy Bypass -File scripts/install-nssm.ps1
 - **身份用 `LocalSystem`**，配合 `HOME=C:\Users\<you>` 让 OpenViking 复用现有 `~/.openviking`（配置、数据、密钥全部一致），无需另配机器级环境变量。
 - **`CODEBUDDY_SAFE_DELETE_ENABLED=0` 必须设**——否则 OpenViking 自己的清理动作可能被 safe-delete 守卫拦。
 - **激活服务需要 `CreateService` 权限**：在受限宿主（如某些 AI 工具内置 PowerShell）里 `sc.exe` 在程序黑名单、`nssm install` / `New-Service` 会被宿主杀掉，SCM 也不会识别纯注册表写入的服务项。这种情况下，到**本机真实的管理员 PowerShell** 跑 `install-nssm.ps1` 即可（nssm install 会通知 SCM 加载）。若已用纯注册表方式写好服务项，重启系统也能让 SCM 在启动时加载。
+- ⚠️ **两条自启路径互斥**。NSSM 服务生效后必须卸掉计划任务，否则重启机器时两边同时抢 `1933`，而 NSSM 的 `AppExit=Restart` 会让失败的那个反复重启刷日志：
+
+  ```powershell
+  Unregister-ScheduledTask -TaskName OpenVikingMemoryServer -Confirm:$false
+  ```
+
+  反过来，若暂时用不上面真服务，就保持计划任务、不要留一个 `Start=auto` 的服务注册表项。
+
+- 验收（服务真的由 SCM 管着，而不是某个会话）：
+
+  ```powershell
+  Get-Service OpenVikingServer                       # 期望 Status=Running, StartType=Automatic
+  (Get-CimInstance Win32_Service -Filter "Name='OpenVikingServer'").ProcessId   # 记下 pid
+  (Get-Process -Id <pid>).MainWindowHandle           # 期望 0
+  # 父链末端应为 services.exe，而不是 svchost(Task Scheduler) / powershell
+  ```
 
 ---
 
