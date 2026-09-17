@@ -57,20 +57,31 @@ claude plugin install openviking
 dsh plugin --profile web add ...     # clear the shim first
 ```
 
-Some codex builds have **no `plugin add` subcommand** → copy the plugin to
-`%USERPROFILE%\.codex\plugins\openviking-memory`, run `scripts/make-codex-hooks.py`, and add to
-`config.toml`:
+Codex: install through Codex's own marketplace mechanism — **do not hand-edit `config.toml`**.
 
-```toml
-[features]
-plugin_hooks = true
-[mcp_servers.openviking-memory]
-command = "node"
-args = ["<plugin-root>/servers/mcp-proxy.mjs"]
-cwd = "<plugin-root>"
-[plugins."openviking-memory@openviking"]
-enabled = true
+```bash
+python scripts/install-codex-plugin.py
 ```
+
+It creates a local marketplace under `~/.codex/local-marketplaces/openviking/` whose manifest
+points at the plugin, then runs `codex plugin marketplace add` + `codex plugin add`. Codex
+writes the `config.toml` sections (marketplace + `[plugins."openviking-memory@openviking"]`)
+itself.
+
+Two silent traps:
+
+1. **`source.path` in the marketplace manifest must be relative and inside the marketplace
+   root.** `./plugins/openviking-memory` works; an absolute path or `../..` makes the plugin
+   disappear from `codex plugin list` with no error.
+2. **Hand-writing `[mcp_servers.openviking-memory]` alone does nothing.** Without the
+   marketplace/plugin registration Codex never merges the plugin's `.mcp.json`, and the
+   session reports "no available resources or resource templates" — looks like a broken
+   server, actually an un-enabled plugin. `plugin_hooks = true` is the *old* switch; new
+   Codex reads `hooks` (on by default).
+
+Then **restart Codex** and run `/hooks` inside it to approve the hooks — Codex stores a
+`trusted_hash` per hook and silently skips unapproved ones. `/mcp` should list
+`openviking-memory` with 15 tools.
 
 Network: direct `github.com` may fail behind a firewall — set `HTTPS_PROXY` / `HTTP_PROXY`.
 The TOS mirror `ovrelease.tos-cn-beijing.volces.com` usually works direct.

@@ -317,25 +317,58 @@ OPENVIKING_* 环境变量  →  %OV%\ovcli.conf  →  %OV%\ov.conf  →  内置�
 | Agent | 接入方式 | 备注 |
 |---|---|---|
 | **Claude Code** | `claude plugin install openviking`（marketplace） | 9 个 hook，召回后有本地再摘要，**实际注入 token 最低** |
-| **Codex** | 部分构建**没有 `plugin add` 子命令** → 手动装：复制插件到 `%USERPROFILE%\.codex\plugins\openviking-memory`，跑 `python .\scripts\make-codex-hooks.py` 生成 `hooks.json`，并在 `config.toml` 注册 MCP | 需 `[features] plugin_hooks = true` |
+| **Codex** | `python .\scripts\install-codex-plugin.py`（注册本地 marketplace 再 `plugin add`） | 装完**必须重启 Codex 并在 `/hooks` 里批准一次**，否则 hook 不跑 |
 | **dsh** | `dsh plugin --profile web add ...`（**先清 shim**） | **同进程 Cordis 插件，最稳的接入形态**：贴着会话走、注入对压缩可见、有待写队列 |
 | **ZCode** | `python .\scripts\install-zcode.py` | 手动复刻官方安装器落点（官方不支持 Windows） |
 | **opencode** | npm 插件 `@openviking/opencode-plugin` | 7 个 plugin hook |
 
-Codex 的 `config.toml` 需要：
+#### Codex 接入：别手工改 `config.toml`
+
+老办法是「把插件拷进 `~/.codex/plugins/`，再往 `config.toml` 里手写
+`[mcp_servers.openviking-memory]` 和 `[features] plugin_hooks = true`」。
+**这条路会失败，而且失败得很安静**——只写 `[mcp_servers.*]` 而不注册
+marketplace/plugin，Codex 不会把插件的 `.mcp.json` 并进来，会话里的症状是
+「可用资源和资源模板都是空的」，看着像 OpenViking 没配好，其实是插件压根没启用。
+
+正确姿势是让 Codex 自己装：
+
+```powershell
+python .\scripts\install-codex-plugin.py
+```
+
+脚本做三件事：在 `~/.codex/local-marketplaces/openviking/` 下建一个目录联接指向插件、
+写 marketplace manifest、然后调 `codex plugin marketplace add` + `codex plugin add`。
+装完 `config.toml` 会自动多出这两段（不用手写）：
 
 ```toml
-[features]
-plugin_hooks = true
-
-[mcp_servers.openviking-memory]
-command = "node"
-args = ["C:/Users/<you>/.codex/plugins/openviking-memory/servers/mcp-proxy.mjs"]
-cwd = "C:/Users/<you>/.codex/plugins/openviking-memory"
+[marketplaces.openviking]
+source_type = "local"
+source = '\\?\C:\Users\<you>\.codex\local-marketplaces\openviking'
 
 [plugins."openviking-memory@openviking"]
 enabled = true
 ```
+
+> ⚠️ **marketplace manifest 里的 `source.path` 必须相对、且落在 marketplace 根目录内。**
+> 实测：`./plugins/openviking-memory` 会被接受；绝对路径和 `../../plugins/...`
+> 都会让插件**在 `codex plugin list` 里直接消失**（不报错，只是没有）。脚本用
+> 目录联接解决这个约束。
+
+装完之后还有两个**人工步骤**，脚本代替不了：
+
+1. **重启 Codex** —— 插件和 hook 只在启动时载入。手工调脚本成功 ≠ 真实 hook 生效。
+2. 在 Codex 里跑一次 **`/hooks`**，审阅并批准这些 hook。Codex 会记 `trusted_hash`，
+   装完或改过 `hooks.json` 都要重新批准一次；没批准 = hook 静默不执行。
+   再用 `/mcp` 确认能看到 `openviking-memory`。
+
+自检：
+
+```bash
+node "$(ls -d ~/.codex/plugins/cache/openviking/openviking-memory/*/ | sort -V | tail -1)scripts/ov-memory-doctor.mjs"
+```
+
+它会逐项检查 marketplace 注册、`config.toml` 启用、hook 信任记录、MCP 接线、
+凭据解析、连通性，并给出每一条的修法。
 
 ### P5.3 验收（跨 agent 召回 —— 这才是"互通"的定义）
 

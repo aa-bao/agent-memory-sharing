@@ -1,5 +1,25 @@
 # -*- coding: utf-8 -*-
-"""为 Codex 生成 hooks.json —— 把插件模板里的 ${PLUGIN_ROOT} 替换为本机绝对路径。
+r"""【已过时 —— 优先用 install-codex-plugin.py】
+
+    python .\scripts\install-codex-plugin.py
+
+除非你的 Codex 构建**确实没有 `plugin add` 子命令**，否则不要用本脚本。
+
+为什么降级
+----------
+本脚本走的是「手工把插件拷进 ~/.codex/plugins/ 再自己渲染 hooks.json」的老路，
+它只生成了 ~/.codex/hooks.json，**并没有注册 marketplace / 启用插件**。
+在较新的 Codex 上这样装的后果是：会话里看不到 OpenViking 的 MCP 资源
+（表现为"可用资源和资源模板都是空的"），hook 也不会被载入，而且全程不报错。
+
+另外它写进 config.toml 的 `plugin_hooks = true` 是**旧版** Codex 的开关，
+新版识别的是 `hooks`（且默认已开）。
+
+只有当 `codex plugin add` 不存在时，才回退到本脚本。
+
+---（以下为原说明）---
+
+为 Codex 生成 hooks.json —— 把插件模板里的 ${PLUGIN_ROOT} 替换为本机绝对路径。
 
 用法：
     python make-codex-hooks.py
